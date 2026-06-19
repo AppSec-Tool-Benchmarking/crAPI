@@ -1,0 +1,31 @@
+# Benchmark scan — manual trigger only. No auto-runs, no MR decoration, no pipeline failures.
+# crAPI: multi-service (Java + Go + Python + TypeScript).
+# Build Java and Go services before Polaris scan.
+
+appsec-polaris:
+  stage: test
+  image: ubuntu:22.04
+  when: manual
+  allow_failure: true
+  variables:
+    POLARIS_SERVER_URL: $CI_POLARIS_SERVER_URL
+    POLARIS_ACCESS_TOKEN: $CI_POLARIS_ACCESS_TOKEN
+    DEBIAN_FRONTEND: noninteractive
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq curl unzip default-jdk maven golang-go
+    - cd services/java-api && mvn package -DskipTests -q && cd -
+    - cd services/gocat && go build ./... && cd -
+  script:
+    - mkdir -p results/polaris
+    - curl -fsSLo polaris.zip "$POLARIS_SERVER_URL/api/tools/polaris_cli-linux64.zip" || true
+    - unzip -q polaris.zip || true
+    - chmod +x polaris 2>/dev/null || true
+    - ./polaris analyze
+        --project "crAPI-benchmark"
+        --output-file results/polaris/polaris-results.json || true
+  artifacts:
+    when: always
+    paths:
+      - results/polaris/
+    expire_in: 30 days

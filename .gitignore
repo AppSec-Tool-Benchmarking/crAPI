@@ -1,13 +1,6 @@
-.github/
-.gitlab-ci.yml
-bitbucket-pipelines.yml
-azure-pipelines.yml
-stackhawk.yml
-
 # macOS
 .DS_Store
 
 # Gradle build artifacts
 .gradle/
 **/build/
-

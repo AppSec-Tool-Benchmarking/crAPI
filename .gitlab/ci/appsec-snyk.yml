@@ -1,0 +1,43 @@
+# Benchmark scan — manual trigger only. No auto-runs, no MR decoration, no pipeline failures.
+# crAPI is multi-language: Java + Go + Python + TypeScript.
+# Install all required runtimes in script.
+
+appsec-snyk-code:
+  stage: test
+  image: ubuntu:22.04
+  when: manual
+  allow_failure: true
+  variables:
+    SNYK_TOKEN: $CI_SNYK_TOKEN
+    DEBIAN_FRONTEND: noninteractive
+  script:
+    - apt-get update -qq
+    - apt-get install -y -qq curl nodejs npm default-jdk-headless maven golang-go python3 python3-pip
+    - npm install -g snyk
+    - mkdir -p results/snyk
+    - snyk code test --sarif-file-output=results/snyk/snyk-code.sarif --severity-threshold=low || true
+  artifacts:
+    when: always
+    paths:
+      - results/snyk/
+    expire_in: 30 days
+
+appsec-snyk-opensource:
+  stage: test
+  image: ubuntu:22.04
+  when: manual
+  allow_failure: true
+  variables:
+    SNYK_TOKEN: $CI_SNYK_TOKEN
+    DEBIAN_FRONTEND: noninteractive
+  script:
+    - apt-get update -qq
+    - apt-get install -y -qq curl nodejs npm default-jdk-headless maven golang-go python3 python3-pip
+    - npm install -g snyk
+    - mkdir -p results/snyk
+    - snyk test --json-file-output=results/snyk/snyk-opensource.json --severity-threshold=low || true
+  artifacts:
+    when: always
+    paths:
+      - results/snyk/
+    expire_in: 30 days

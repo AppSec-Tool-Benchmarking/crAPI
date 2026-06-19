@@ -1,0 +1,79 @@
+# Benchmark scan — manual trigger only. No auto-runs, no PR decoration, no pipeline failures.
+# Part of the Guidepoint AppSec Tool Benchmarking program (Phase 1).
+
+name: "AppSec Benchmark — Polaris [crAPI]"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  polaris:
+    name: Polaris SAST Scan
+    # crAPI is a multi-language monorepo. Best-effort build before scan.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Build Java services (best effort)
+        run: |
+          find . -name "pom.xml" -not -path "*/node_modules/*" | while read pom; do
+            dir=$(dirname "$pom")
+            echo "Building Maven project in $dir"
+            (cd "$dir" && mvn package -DskipTests -q) || echo "Maven build failed in $dir — continuing"
+          done
+        continue-on-error: true
+
+      - name: Build Go services (best effort)
+        run: |
+          find . -name "go.mod" -not -path "*/node_modules/*" | while read gomod; do
+            dir=$(dirname "$gomod")
+            echo "Building Go project in $dir"
+            (cd "$dir" && go build ./...) || echo "Go build failed in $dir — continuing"
+          done
+        continue-on-error: true
+
+      - name: Create results directory
+        run: mkdir -p results/polaris
+
+      - name: Run Polaris scan
+        uses: synopsys-sig/synopsys-action@v1
+        continue-on-error: true
+        env:
+          POLARIS_SERVER_URL: ${{ secrets.POLARIS_SERVER_URL }}
+          POLARIS_ACCESS_TOKEN: ${{ secrets.POLARIS_ACCESS_TOKEN }}
+        with:
+          polaris_server_url: ${{ secrets.POLARIS_SERVER_URL }}
+          polaris_access_token: ${{ secrets.POLARIS_ACCESS_TOKEN }}
+          polaris_assessment_types: "SAST"
+          polaris_project_name: "crapi-benchmark"
+          polaris_branch_name: ${{ github.ref_name }}
+          output_file: "results/polaris/polaris-results.json"
+          fail_on_error: false
+
+      - name: Upload Polaris results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: polaris-results
+          path: results/polaris/
+          if-no-files-found: warn

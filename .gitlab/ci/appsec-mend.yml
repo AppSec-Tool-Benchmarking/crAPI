@@ -1,0 +1,25 @@
+# Benchmark scan — manual trigger only. No auto-runs, no MR decoration, no pipeline failures.
+# crAPI: multi-language — use ubuntu base with all runtimes available.
+
+appsec-mend:
+  stage: test
+  image: ubuntu:22.04
+  when: manual
+  allow_failure: true
+  variables:
+    MEND_EMAIL: $CI_MEND_EMAIL
+    MEND_USER_KEY: $CI_MEND_USER_KEY
+    DEBIAN_FRONTEND: noninteractive
+  script:
+    - apt-get update -qq
+    - apt-get install -y -qq curl default-jre-headless nodejs npm python3 python3-pip golang-go
+    - mkdir -p results/mend
+    - curl -LJO https://unified-agent.s3.amazonaws.com/wss-unified-agent.jar
+    - java -jar wss-unified-agent.jar -failErrorLevel none || true
+    - find . -name "whitesource" -type d -exec cp -r {} results/mend/ \; 2>/dev/null || true
+    - find . -name "*.json" -path "*/whitesource/*" -exec cp {} results/mend/ \; 2>/dev/null || true
+  artifacts:
+    when: always
+    paths:
+      - results/mend/
+    expire_in: 30 days

@@ -1,0 +1,37 @@
+# Benchmark scan — manual trigger only. No auto-runs, no MR decoration, no pipeline failures.
+# crAPI: multi-service (Java + Go + Python + TypeScript).
+# Build Java service and Go service before scanning.
+
+appsec-veracode:
+  stage: test
+  image: ubuntu:22.04
+  when: manual
+  allow_failure: true
+  variables:
+    VERACODE_API_ID: $CI_VERACODE_API_ID
+    VERACODE_API_KEY: $CI_VERACODE_API_KEY
+    DEBIAN_FRONTEND: noninteractive
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq curl unzip default-jdk maven golang-go zip
+    # Build Java service
+    - cd services/java-api && mvn package -DskipTests -q && cd -
+    # Build Go service
+    - cd services/gocat && go build ./... && cd -
+  script:
+    - mkdir -p results/veracode
+    # Zip all compiled artifacts + remaining source for multi-language coverage
+    - zip -r results/veracode/source.zip . -x "*.git*" -x "results/*" -x "node_modules/*"
+    - curl -sLO https://downloads.veracode.com/securityscan/pipeline-scan-LATEST.zip
+    - unzip -q pipeline-scan-LATEST.zip pipeline-scan.jar
+    - java -jar pipeline-scan.jar
+        --veracode_api_id "$VERACODE_API_ID"
+        --veracode_api_key "$VERACODE_API_KEY"
+        --file results/veracode/source.zip
+        --fail_on_severity ""
+        --json_output_file results/veracode/veracode-results.json || true
+  artifacts:
+    when: always
+    paths:
+      - results/veracode/
+    expire_in: 30 days
